@@ -3,26 +3,130 @@
 Elasticsearch安装与运行
 1.下载安装 JDK1.8
 2.下载安装 Elasticsearch
-
+3.运行Elasticsearch
+$ ./bin/elasticsearch
+$ curl http://localhost:9200
+{
+  "name" : "lWqzCAm",
+  "cluster_name" : "elasticsearch",
+  "cluster_uuid" : "UOJA9tJzQDiFsLhaFk2ecw",
+  "version" : {
+    "number" : "6.2.3",
+    "build_hash" : "c59ff00",
+    "build_date" : "2018-03-13T10:06:29.741383Z",
+    "build_snapshot" : false,
+    "lucene_version" : "7.2.1",
+    "minimum_wire_compatibility_version" : "5.6.0",
+    "minimum_index_compatibility_version" : "5.0.0"
+  },
+  "tagline" : "You Know, for Search"
+}
 ================================================
 2-2 Elasticsearch配置详解
 
+Elasticsearch 配置说明
+elasticsearch.yml
+	cluster.name	集群名称, 以此作为是否同一集群的判断条件
+	node.name		节点名称, 以此作为集群中不同节点的区分条件
+	network.host	网络地址
+	http.port		端口
+	path.data		数据存储地址
+	path.log		日志存储地址
 
+启动之前会检查, 如磁盘, 内存等
+Development 与 Production 模式说明
+	如果 network.host 配置的是 127.0.0.1 则是 Development 模式, 否则就是 Production 模式
+	Development 模式下在启动时会以 warning 的方式提示配置检查异常
+	Production 模式下在启动时会以 error 的方式提示配置检查异常并推出
+
+参数修改的第二种方式:
+	$ ./bin/elasticsearch -Ehttp.port=19200
 ================================================
 2-3 Elasticsearch本地快速搭建集群
 
+Elasticsearch 本地启动集群的方式
+$ ./bin/elasticsearch
+$ ./bin/elasticsearch -Ehttp.port=8200 -Epath.data=node2
+$ ./bin/elasticsearch -Ehttp.port=7200 -Epath.data=node3
+$ curl http://192.168.91.101:9200/_cat/nodes?v
+ip             heap.percent ram.percent cpu load_1m load_5m load_15m node.role master name
+192.168.91.101        23          97   0    0.07    0.23     0.16    mdi       *      lWqzCAm
+192.168.91.101        24          97   0    0.07    0.23     0.16    mdi       -      GFa4Ynw
+192.168.91.101        23          97   0    0.07    0.23     0.16    mdi       -      5Zgfb9Z
+$ curl http://192.168.91.101:9200/_cluster/stats
 ================================================
 2-4 Kibana安装与演示
 
-
+1.下载安装 Kibana
+2.运行 Kibana
+$ ./bin/kibana
 ================================================
 2-5 Kibana配置详解
 
+kibana.yml 关键配置说明
+	server.host			访问 kibana 用的地址
+	server.port			访问 kibana 的端口
+	elasticsearch.url	待访问 elasticsearch 的地址
+
+Kibana 常用功能说明
+	Discover 数据搜索查看
+	Visualize 图表制作
+	Dashboard 仪表盘制作
+	Timelion  时序数据的高级可视化分析
+	Dev Tools 开发者工具
+	Management配置管理  
 ================================================
 2-6 Elasticsearch术语介绍与CRUD实际操作
 
+Elasticsearch 常用术语
+	Document 文档数据 具体的数据
+	Index 索引 类似 MySQL 中的一个数据库,所有的 Document 都是存在于具体的索引中的
+	Type 索引中的数据类型 类似 MySQL 中的一个表
+	Field 字段, 文档的属性 
+	Query DSL 查询语法
+
+Elasticsearch CRUD
+	Create	创建文档
+	post /accounts/person/1
+	{
+	  "name":"John",
+		"lastname":"Doe",
+		"job_description":"System administrator and Linux specialit"
+	}
+	Read	读取文档
+	GET /accounts/person/1
+	Update	更新文档
+	post accounts/person/1/_update
+	{
+	  "doc":{
+		"job_description":"Systems administrator and Linux specialist"
+	  }
+	}
+	Delete	删除文档
+	DELETE /accounts/person/1
 ================================================
 2-7 Elasticsearch查询简介
+
+Elasticsearch Query
+1.Query String
+GET /accounts/person/_search?q=john
+
+2.Query DSL 用 Json 拼接查询语言, 更加的强大
+GET /accounts/person/_search
+{
+  "query":{
+    "match":{
+	  "name":"john"
+	}
+  }
+}
+
+
+
+
+
+
+
 
 
 
