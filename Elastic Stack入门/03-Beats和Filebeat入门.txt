@@ -1,25 +1,97 @@
 3-1 Beats简介
 
-
+简介
+Lightweight Data Shipper
+	Filebeat 日志文件
+	Metricbeat 度量数据
+	Packetbeat 网络数据
+	Winlogbeat windows 数据
+	Heartbeat 健康检查
 ================================================
 3-2 Filebeat简介
 
+处理流程
+输入 Input
+处理 Filter
+输出 Output
 
+Filebeat 由两部分组成:
+Prospector 勘探者 检查日志文件数据是否变化
+Harvester  收割者 每一个日志文件各自有一个Harvester
 ================================================
 3-3 Filebeat配置简介
 
+Filebeat Input 配置简介
+yaml 语法
+type
+	log
+	stdin
 
+Filebeat Output 配置简介
+Console
+Elasticsearch
+Logstash
+Kafka
+Redis
+File
+
+Filebeat Filter 配置简介
+Input 时处理
+	include_lines
+	exclude_lines
+	exclude_files
+Output 前处理 -- Processor
+	drop_event
+	drop_fields
+	decode_json_fields
+	include_fields
 ================================================
 3-4 Filebeat高级使用简介
 
-
+Filebeat + Elasticsearch Ingest Node
+	Filebeat 缺乏数据转换的能力
+	Elasticsearch Ingest Node
+		新增的 node 类型
+		在写入 es 前对数据进行处理转换
+		pipeline api
+	
+Filebeat Module 简介
+	对于社区常见需求进行配置封装增加易用性
+		nginx
+		apache
+		mysql
+	封装内容
+		filebeat.yml 配置
+		ingest node pipeline 配置
+		kibana dashboard
+	最佳实践参考
 ================================================
 3-5 Filebeat演示
 
-
+Filebeat 收集 nginx log
+	通过 stdin 收集日志
+	通过 console 输出结果 
+	
+$ cd /data/filebeat
+$ head -n 2 /tmp/nginx_logs | ./filebeat -e -c nginx.yml
 ================================================
 3-6 Packetbeat简介
 
+实时抓取网络包
+自动解析应用层协议
+	ICMP
+	DNS
+	HTTP
+	MySQL
+	Redis
+	...
+Wireshark
+
+Packetbeat 解析 http 协议
+	解析 elasticsearch http 请求
 ================================================
 3-7 Packetbeat演示
+
+Packetbeat 运行
+$ sudo ./packetbeat -e -c es.yml -strict.perms=false
 

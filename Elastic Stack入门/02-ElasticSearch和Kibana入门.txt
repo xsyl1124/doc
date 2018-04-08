@@ -120,13 +120,3 @@ GET /accounts/person/_search
 	}
   }
 }
-
-
-
-
-
-
-
-
-
-
