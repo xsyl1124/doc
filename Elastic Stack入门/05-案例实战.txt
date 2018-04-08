@@ -1,10 +1,36 @@
 5-1 实战目标和方案介绍
 
-
+实战: 分析 Elasticsearch 查询语句
+目标
+	收集 Elasticsearch 集群的查询语句
+	分析查询语句的常用语句、响应时长
+方案
+	应用 Packetbeat + Logstash 完成数据收集工作
+	使用 Kibana + Elasticsearch 完成数据分析工作
+	Production Cluster
+		Elasticsearch http://127.0.0.1:9200
+		Kibana http://127.0.0.1:5601
+	Monitoring Cluster
+		Elasticsearch http://127.0.0.1:8200
+		Kibana http://127.0.0.1:8601
+		./bin/kibana -e http://127.0.0.1:8200 -p 8601
+	Production 与 Monitoring 不能是一个集群, 否则会进入抓包死循环
+	Logstash 配置
+		sniff_search.conf
+	Packetbeat 配置
+		sniff_search.yml
 ================================================
 5-2 实战之数据收集演示
 
-
+实战
+$ cd /data/elasticsearch
+$ ./bin/elasticsearch -Ecluster.name=sniff_search -Ehttp.port=8200 -Epath.data=sniff_search
+$ cd /data/kibana
+$ ./bin/kibana -e  http://192.168.91.101:8200 -p 8601
+$ cd /data/logstash
+$ ./bin/logstash -f sniff_search.conf 
+$ cd /data/packetbeat
+$ sudo ./packetbeat -e -c sniff_search.yml -strict.perms=false
 ================================================
 5-3 实战之Kibana使用演示
 
