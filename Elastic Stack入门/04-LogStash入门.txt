@@ -1,9 +1,57 @@
 4-1 Logstash简介
 
+简介
+Data Shipper
+	ETL
+	Extract
+	Transform
+	Load
 
+处理流程
+Input
+	file
+	redis
+	beats
+	kafka
+Filter
+	grok 正则表达式 格式化数据
+	mutate 
+	drop
+	date
+Output
+	stdout
+	elasticsearch
+	redis
+	kafka
 ================================================
 4-2 Logstash配置简介
 
-
+处理流程 -- Input 和 Output 配置
+	input {file{path => "/tmp/abc.log"}}
+	output {stdout{path => rubydebug}}
+处理流程 -- Filter 配置
+	Grok
+		基于正则表达式提供了丰富可重用的模式(pattern)
+		基于此可以将非结构化数据作结构化处理
+	Date
+		将字符串类型的时间字段转换为时间戳类型, 方便后续数据处理
+	Mucate
+		进行增加, 修改, 删除, 替换等字段相关的处理
+处理流程 -- Filter 配置 Grok 示例
+	将这段非格式化的数据 93.180.71.3 GET /index.html 15824 0.043
+	转换为格式化的数据 %{IP:client} %{WORD:method} %{URIPATHPARAM:request} %{NUMBER:bytes} %{NUMBER:duration}
+	GROK 中的 pattern: IP, WORD, URIPATHPARAM, NUMBER, duration等
+	转换后的结果:
+	{
+		"client":"93.180.71.3"
+		"method":"GET",
+		"request":"/index.html",
+		"bytes":15824,
+		"duration":0.043
+	}	
 ================================================
 4-3 Logstash演示
+
+收集 nginx log
+$ cd /data/logstash
+$ head -n 2 /tmp/nginx_logs | ./bin/logstash -f nginx_logstash.conf
