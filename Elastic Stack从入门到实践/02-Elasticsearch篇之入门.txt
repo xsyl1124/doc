@@ -1,0 +1,61 @@
+2-1 术语介绍
+
+常见术语
+文档 Document
+  - 用户存储在 es 中的数据文档 最小存储单元
+索引 Index
+  - 由具有相同字段的文档列表组成 6.x将去除 type,所以类似 MySQL 中的表
+节点 Node
+  - 一个 Elasticsearch 的运行实例, 是集群的构成单元
+集群 Cluster
+  - 由一个或者多个节点组成, 对外提供服务
+================================================
+2-2 Document 介绍
+
+Json Object, 由字段(Field)组成,常见数据类型如下:
+  - 字符串:text, keyword
+  - 数值型:long, integer, short, byte, double, float, half_float, scaled_float
+  - 布尔: boolean
+  - 日期: date
+  - 二进制: binary
+  - 范围类型: integer_range, float_range, long_range, double_range, date_range
+  
+每一个文档都有唯一 id 标识
+  - 自行制定
+  - es 自动生成
+
+元数据, 用于标注文档的相关信息
+  - _index: 文档所在索引名
+  - _type: 文档所在的类型名
+  - _id: 文档唯一id
+  - _uid: 组合id, 由 _type 和 _id 组成(6.x _type 不再起作用, 同_id 一样)
+  - _source: 文档的原始 Json 数据, 可以从这里获取每个字段的内容
+  - _all: 整合所有字段内容到该字段, 默认禁用(因为针对所有字段内容做分词, 占磁盘空间, 查询效果也不好)
+================================================
+2-3 Index
+
+索引中存储具有相同结构的文档(Document)
+  - 每个索引都有自己的 mapping 定义, 用于定义字段名和类型
+
+一个集群可以有多个索引, 比如
+  - nginx 日志文件存储的时候可以按照日期每天生成一个索引来存储
+    - nginx-log-2017-01-01  
+    - nginx-log-2017-01-02  
+    - nginx-log-2017-01-03  
+================================================
+2-4 Rest API
+
+Elasticsearch 集群对外提供 RESTful API
+  - REST REpresentational State Transfer
+  - URI 制定资源, 如 Index, Document 等 
+  - Http Method 指明资源操作类型, 如 GET, POST, PUT, DELETE 等 
+
+常用两种交互方式
+  - Curl 命令行
+  - Kibana DevTools  
+  
+  
+  
+  
+  
+  
