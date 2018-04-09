@@ -53,9 +53,78 @@ Elasticsearch 集群对外提供 RESTful API
 常用两种交互方式
   - Curl 命令行
   - Kibana DevTools  
+================================================
+2-5 索引 API
+
+es 有专门的 Index API, 用于创建, 更新, 删除索引配置等
+  - 创建索引 api 
+    PUT /test_index
+	GET _cat/indices
+  - 删除索引 api
+    DELETE /test_index
+================================================
+2-6 文档 Document API	
+
+es 有专门的 Document API
+  - 创建文档 如果索引不存在, es会自动创建对应的 index 和 type
+    - 指定 id 创建文档
+    PUT /test_index/doc/1
+	{
+	  "username":"alfred",
+	  "age":22
+	}
+	- 不指定 id 创建文档
+	POST /test_index/doc
+	{
+	  "username":"tom",
+	  "age":20
+	}
+  - 查询文档
+    - 指定要查询的文档 id
+	GET /test_index/doc/1
+	- 搜索所有文档, 用到 _search
+	GET /test_index/doc/_search //查询所有的
+	GET /test_index/doc/_search //查询id=1的
+	{
+	  "query":{
+	    "term":{
+		  "_id":"1"
+		}
+	  }
+	}
+	
+  - 更新文档
+  - 删除文档
   
+es 允许一次创建多个文档, 从而减少网络传输开销, 提升写入效率
+  - endpoint 为 _bulk
+  POST _bulk
+  {"index":{"_index":"test_index","_type":"doc","_id":"3"}}
+  {"username":"alfred","age":10}
+  {"delete":{"_index":"test_index","_type":"doc","_id":"1"}}  
+  {"update":{"_id":2,"_index":"test_index","_type":"doc"}}  
+  {"doc":{"age":"20"}}
+  说明:
+  action_type:
+	index 
+	update 
+	create 
+	delete
   
-  
-  
-  
-  
+es 允许一次查询多个文档
+  - endpoint 为 _mget
+	GET /_mget
+	{
+	  "docs":[
+	  {
+		"_index":"test_index",
+		"_type":"doc",
+		"_id":"2"
+	  },
+	  {
+		"_index":"test_index",
+		"_type":"doc",
+		"_id":"3"
+	  }
+	  ]
+	} 
