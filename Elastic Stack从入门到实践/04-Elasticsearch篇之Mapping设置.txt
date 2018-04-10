@@ -1,0 +1,331 @@
+4-1 mapping简介
+
+类似数据库中的表结构定义, 主要作用如下:
+  - 定义 Index 下的字段名(Field Name)
+  - 定义字段的类型, 比如数值型、字符串型、布尔型
+  - 定义倒排索引相关的配置, 比如是否索引、记录position等
+  GET /test_index/_mapping
+================================================
+4-2 自定义mapping
+
+自定义Mapping的api:
+PUT my_index
+{
+  "mappings":{        //mappings关键词
+    "doc":{           //type名称
+	  "properties":{
+	    "title":{
+		  "type":"text"  //字段类型
+		},
+		"name":{
+		  "type":"keyword"
+		},
+		"age":{
+		  "type":"integer"
+		}
+	  }
+	}
+  }
+} 
+
+Mapping 中的字段类型一旦设定后, 禁止直接修改,原因:
+  - Lucence 实现的倒排索引生成后不允许修改
+
+重新建立新的索引,然后做 reindex 操作
+
+允许新增字段
+
+通过 dynamic 参数来控制字段的新增
+  - true (默认)允许自动新增字段
+  - false 不允许自动新增字段, 但是文档可以正常写入,但无法对字段进行查询等操作
+  - strict 文档不能写入
+================================================
+4-3 mapping演示
+
+PUT my_index
+{
+  "mappings":{
+    "doc":{
+	  "dynamic":false,  //不能新增字段
+	  "properties":{
+	    "title":{
+		  "type":"text"
+		},
+		"name":{
+		  "type":"keyword"
+		},
+		"age":{
+		  "type":"integer"
+		}
+	  }
+	}
+  }
+}
+
+PUT my_index/doc/1
+{
+  "title":"Hello, world",
+  "desc":"nothing here"  //虽然新增了字段, 但是查询不了
+}
+
+GET my_index/doc/_search
+{
+  "query":{
+    "match":{
+	  "title":"hello"
+	}
+  }
+}
+================================================
+4-4 copy_to参数说明
+
+copy_to
+  - 将该字段的值复制到目标字段, 实现类似 _all 的作用
+  - 不会出现在 _source 中, 只用来搜索
+
+PUT my_index
+{
+  "mappings":{
+    "doc":{
+	  "properties":{
+	    "first_name":{
+		  "type":"text",
+		  "copy_to":"full_name"
+		},
+		"last_name":{
+		  "type":"text",
+		  "copy_to":"full_name"
+		},
+		"full_name":{
+		  "type":"text"
+		}
+	  }
+	}
+  }
+}
+
+PUT my_index/doc/1
+{
+  "first_name":"John",
+  "last_name":"Smith"
+}
+
+GET my_index/doc/_search
+{
+  "query":{
+    "match":{
+	  "full_name":"John Smith",
+	  "operator":"and"
+	}
+  }
+}
+================================================
+4-5 index参数说明
+
+index
+  - 控制当前字段是否索引,默认true,即记录索引,false不记录,即不可搜索
+
+PUT my_index
+{
+  "mappings":{
+    "doc":{
+	  "properties":{
+	    "cookie":{
+		  "type":"text"
+		  "index":false   //设置false,就不记录倒排索引
+		}
+	  }
+	}
+  }
+} 
+
+PUT my_index/doc/1
+{
+  "cookie":"name=alfred"
+}
+
+GET my_index/doc/_search
+{
+  "query":{
+    "match":{
+	  "cookie":"name"
+	}
+  }
+}
+================================================
+4-6 index_options参数说明
+
+index_options 用于控制倒排索引记录的内容, 有4种配置:
+  - docs 只记录 doc id
+  - freqs 记录 doc id 和 term frequencies
+  - positions 记录 doc id, term frequencies 和 term position
+  - offsets记录doc id,term frequencies,term position和character offsets
+
+text 类型默认配置为 positions, 其他默认为 docs
+
+记录的内容越多, 占用空间越大
+
+PUT my_index
+{
+  "mappings":{
+    "doc":{
+	  "properties":{
+	    "cookie":{
+		  "type":"text"
+		  "index_options":"offsets"
+		}
+	  }
+	}
+  }
+} 
+
+null_value
+  -  当字段遇到null值时的处理策略,默认为null,即空值,此时es会忽略该值,可以通过这顶该值设定字段的默认值
+
+PUT my_index
+{
+  "mappings":{
+    "my_type":{
+	  "properties":{
+	    "status_code":{
+		  "type":"keyword",
+		  "null_value":"NULL"
+		}
+	  }
+	}
+  }
+}
+================================================
+4-7 mapping文档说明
+
+https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping.html
+================================================
+4-8 数据类型
+
+核心数据类型
+  - 字符串型 text,keyword
+  - 数值型 long,integer,short,byte,double,float,half_float,scaled_float
+  - 日期类型 date
+  - 布尔类型 boolean
+  - 二进制类型 binary
+  - 范围类型 integer_range,float_range,long_range,double_range,date_range
+  
+复杂数据类型
+  - 数组类型 array
+  - 对象类型 object 
+  - 嵌套类型 nested object
+
+地理位置数据类型
+  - geo_point
+  - geo_shape  
+  
+专用类型
+  - 记录ip地址
+  - 实现自动补全completion
+  - 记录分词书token_count
+  - 记录字符串hash值murmur3
+  - percolator
+  - join
+
+多字段特性multi-fields
+  - 允许对同一个字段采用不同的配置,比如分词,常见例子如对任命实现拼音搜索,只需要在人名中新增一个子字段为pinyin即可
+
+https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping-types.html  
+================================================
+4-9 dynamic-mapping简介
+
+es可以自动识别文档字段类型,从而降低用户使用成本:
+PUT /test_index/doc/1
+{
+  "username":"alfred",
+  "age":1
+}
+GET /test_index/_mapping
+
+es依靠JSON文档的字段类型来实现自动识别字段类型
+JSON类型        es类型
+null        忽略
+boolean     boolean
+浮点类型    float
+整数        long
+object      object
+array       由第一个非null值得类型决定
+string      匹配为日期则设为date类型,匹配为数字的话设为float或long类型,都不匹配,就设为text类型,并附带keyword的子字段
+
+PUT /test_index/doc/1
+{
+  "user_name":"John",
+  "age":14,
+  "birth":"1988-10-10",
+  "married":false,
+  "year":"18",
+  "tags":["boy","fashion"],
+  "money":100.1
+}
+GET /test_index/_mapping
+================================================
+4-10 dynamic日期与数字识别
+
+日期的自动识别可以自行配置日期格式,以满足各种要求
+  - 默认是["strict_date_optional_time","yyyy/MM/dd HH:mm:ss Z||yyyy/MM/dd Z"]
+  - strict_date_optional_time是ISO datetime的格式,完整格式:
+    - YYYY-MM-DDThh:mm:ssTZD(eg 1997-07-16T19:20:30+01:00)
+  - dynamic_date_formats 可以自定义日期类型
+  - date_detection 可以关闭日期自动识别的机制
+  
+PUT my_index
+{
+  "mappings":{
+    "my_type":{
+	  "dynamic_date_formats":["MM/dd/yyyy"] //自定义日期识别格式
+	}
+  }
+}
+PUT my_index/my_type/1
+{
+  "create_date":"09/25/2015"
+}  
+PUT my_index
+{
+  "mappings":{
+    "my_type":{
+	  "date_detection":false  //关闭日期自动识别机制
+	}
+  }
+}  
+  
+字符串是数字时,默认不会自动识别为整形,因为字符串中出现数字是完全合理的
+  - numeric_detection 可以开启字符串中数字的自动识别
+PUT my_index
+{
+  "mappings":{
+    "my_type":{
+	  "numeric_detection":true
+	}
+  }
+}
+PUT my_index/my_type/1
+{
+  "my_float":"1.0",
+  "my_integer":"1"
+}
+GET my_index/_mapping  
+  
+================================================
+4-11 dynamic-template简介
+
+
+
+
+
+================================================
+4-12 自定义mapping的建议
+
+
+================================================
+4-13 索引模板
+
+
+
+
+
