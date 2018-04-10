@@ -1,0 +1,255 @@
+3-1 书本的目录和索引
+
+书的目录
+  - 用于查看章节
+  - 指明章节名称
+  - 指明页数
+
+书的索引
+  - 用于关键词的查找
+  - 指明关键词
+  - 指明页数  
+
+书与搜索引擎
+  - 目录页对应正排索引
+  - 索引页对应倒排索引 
+  
+搜索引擎
+  - 正排索引
+    - 文档 ID 到文档内容、单词的关联关系
+  - 倒排索引
+    - 单词到文档 ID 的关联关系  
+================================================
+3-2 正排与倒排索引简介
+
+正排索引
+  - 文档 ID 到文档内容、单词的关联关系
+
+倒排索引
+  - 单词到文档 ID 的关联关系
+  
+查询包含"搜索引擎"的文档
+  - 通过倒排索引获得"搜索引擎"对应的文档ID
+  - 通过正排索引查询第一步获取ID的完整内容
+  - 返回用户最终结果  
+================================================
+3-3 倒排索引详解
+
+倒排索引是搜索引擎的核心, 主要包含两部分
+  - 单词词典(Term Dictionary)
+  - 倒排列表(Posting List)
+
+单词词典(Term Dictionary)是倒排索引的重要组成
+  - 记录所有文档的单词, 一般都比较大
+  - 记录单词到倒排列表的关联信息  
+
+单词词典的实现一般用 B+ Tree
+  - https://www.cs.usfca.edu/~galles/visualization/BPlusTree.html
+
+倒排列表(Posting List)记录了单词对应的文档集合, 由倒排索引项(Posint)组成
+ 
+倒排索引项(Posting)主要包含如下信息:
+  - 文档 Id, 用于获取原始信息
+  - 单词频率(TF, Term Frequency),记录该单词在该文档中的出现次数,用于后续相关性算分
+  - 位置(Position), 记录单词在文档中的分词位置(多个),用于做词语搜索(Phrase Query)
+  - 偏移(Offset), 记录单词在文档的开始和借宿位置, 用于做高亮显示
+
+es 存储的是一个 json 格式的文档,其中包含多个字段,每个字段会有自己的倒排索引  
+================================================
+3-4 分词介绍
+
+分词是指将文本转换成一系列单词(term or token)的过程, 也叫文本分析, 在 es 中里面也称为 Analysis
+文本		elasticsearch 是最流行的搜索引擎
+分词结果	elasticsearch 流行 搜索引擎
+
+分词器是 es 中专门处理分词的组件, 英文为 Analyzer, 组成如下:
+  - Character Filters
+    - 针对原始文本进行处理, 比如去除html特殊标记符
+  - Tokenizer
+    - 将原始文本按照一定规则切分为单词
+  - Token Filters
+    - 针对 tokenizer 处理的单词就行再加工,比如转小写,删除或新增等处理
+
+分词器 - 调用顺序
+例如: The QUICK brown foxes jumped over the lazy dog!
+Character Filters->Tokenizer->Token Filters-
+得出结果[the,quick,brown,foxes,jumped,over,the,lazy,dog]
+================================================
+3-5 analyze api
+
+es提供了一个测试分词的api接口,方便验证分词效果,endpoint是_analyze
+  - 可以直接指定analyzer进行测试
+  - 可以直接指定索引中的字段进行测试
+  - 可以自定义分词器进行测试
+
+直接指定analyzer进行测试:
+POST _analyze
+{
+  "analyzer":"standard", //分词器
+  "text":"hello world!"  //测试文本
+}
+
+直接指定索引中的字段进行测试:
+POST test_index/_analyze
+{
+  "field":"username",    //测试字段
+  "text":"hello world!"  //测试文本
+}
+
+自定义分词器进行测试:
+POST _analyze
+{
+  "tokenizer":"standard", 
+  "filter": ["lowercase"],
+  "text":"HeLlo WorlD!"  
+}
+================================================
+3-6 自带分词器
+
+es 自带如下分词器:
+  - Standard
+  - Simple
+  - Whitespace
+  - Stop
+  - Keyword
+  - Pattern
+  - Language
+  
+Standard Analyzer
+  - 默认分词器
+  - 特性
+    - 按词切分, 支持多语言
+    - 小写处理
+  - 组成
+    Tokenizer:   Standard
+	TokenFilters:Standard,Lower case,Stop(disabled by default)
+  - 测试该分词器
+  POST _analyze
+  {
+    "analyzer":"standard", 
+    "text":"The 2 2 QUICK Brown Foxes jumped over the lazy dog's bone."  
+  }
+  
+Simple Analyzer
+  - 特性
+    - 按照非字母切分(非字母丢弃)
+	- 小写处理
+  - 组成
+    Tokenizer: Lower Case
+  - 测试该分词器
+  POST _analyze
+  {
+    "analyzer":"simple", 
+    "text":"The 2 2 QUICK Brown Foxes jumped over the lazy dog's bone."  
+  }
+
+Whitespace Analyzer
+  - 特性
+    - 按照空格切分
+  - 组成
+    Tokenizer: Whitespace
+  - 测试该分词器
+  POST _analyze
+  {
+    "analyzer":"whitespace", 
+    "text":"The 2 2 QUICK Brown Foxes jumped over the lazy dog's bone."  
+  }
+
+Stop Analyzer
+  - 特性
+    - Stop word指语气助词等修饰的词语,比如the,an,的,这等等
+  - 组成
+    Tokenizer: Lower Case
+	TokenFilters:Stop
+  - 测试该分词器
+  POST _analyze
+  {
+    "analyzer":"stop", 
+    "text":"The 2 2 QUICK Brown Foxes jumped over the lazy dog's bone."  
+  }
+
+Keyword Analyzer
+  - 特性
+    - 不分词,直接将输入作为一个单词输出
+  - 组成
+    Tokenizer: keyword
+  - 测试该分词器
+  POST _analyze
+  {
+    "analyzer":"keyword", 
+    "text":"The 2 2 QUICK Brown Foxes jumped over the lazy dog's bone."  
+  }
+
+Pattern Analyzer
+  - 特性
+    - 通过正则表达式自定义分割符
+	- 默认是\W+,即非字词的符号作为分割符
+  - 组成
+    Tokenizer: Pattern
+	TokenFilters:Lower Case,Stop(disabled by default)
+  - 测试该分词器
+  POST _analyze
+  {
+    "analyzer":"pattern", 
+    "text":"The 2 QUICK Brown-Foxes jumped over the lazy dog's bone."  
+  }  
+  
+Language Analyzer
+  - 提供了30+常见语言的分词器
+  - arabic,armenian,basque,bengali,brazilian,czech,english...  
+================================================
+3-7 中文分词
+
+难点
+  - 中文分词是指将一个汉字序列切分成一个个单独的词.在英文中,单词之间是用空格作为自然分界符,汉语中词没有一个形式上的分界符
+  - 上下文不同,分词结果迥异,比如交叉歧义问题,比如:
+    - 乒乓球拍/卖/完了
+    - 乒乓球/拍卖/完了
+  - http://mp.weixin.qq.com/s/SiHSMrn8lxCmrtHbcwL-NQ
+  
+常用分词系统
+  - IK
+    - 实现中英文单词的切分,支持ik_smart,ik_maxword等模式
+	- 可自定义词库,支持热更新分词词典
+	- https://github.com/medcl/elasticsearch-analysis-ik
+  - jieba  
+    - python中最流行的分词系统,支持分词和词性标注
+	- 支持繁体分词,自定义词典,并行分词等
+	- https://github.com/sing1ee/elasticsearch-jieba-plugin
+
+基于自然语言处理的分词系统
+  - Hanlp
+    - 由一系列模型与算法组成的Java工具包,目标是普及自然语言处理在生产环境中的应用
+    - https://github.com/hankcs/HanLP
+
+  - THULAC	
+    - THU Lexical Analyzer for Chinese,由清华大学自然语言处理与社会人文计算实验室研制推出的一套中文词法分析工具包,具有中文分词和词性标注功能
+    - https://github.com/microbun/elasticsearch-thulac-plugin
+
+================================================
+3-8 自定义分词之 CharacterFilter
+
+
+
+================================================
+3-9 自定义分词之 Tokenizer
+
+
+================================================
+3-10 自定义分词之 TokenFilter
+
+
+================================================
+3-11 自定义分词
+
+================================================
+3-12 分词使用说明
+
+
+================================================
+3-13 官方文档说明
+
+
+ 
+
+
