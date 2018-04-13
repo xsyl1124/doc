@@ -230,10 +230,43 @@ Grok语法如下:
 
 熟悉常见一些pattern利于编写匹配规则  
 https://github.com/logstash-plugins/logstash-patterns-core/tree/master/patterns
+------------------------------------------------
+下面是 test.conf 的配置文件
+input {
+  http {
+    port =>7474
+  }
+}
+filter {
+  grok {
+    match => {
+      "message" => "%{IPORHOST:clientip} %{USER:ident} %{USER:auth} \[%{HTTPDATE:timestamp}\] \"%{WORD:verb} %{DATA:request} HTTP/%{NUMBER:httpversion}\" %{NUMBER:response:int} (?:-|%{NUMBER:bytes:int}) %{QS:referrer} %{QS:agent}"
+    }
+  }
 
-
-
-
+  mutate {
+    remove_field => "headers"
+  }
+}
+output {
+  stdout {
+    codec =>rubydebug
+  }
+}
+./bin/logstash -f test.conf -r //logstash启动非常的慢,通过 -r 这个参数,热加载配置文件
+使用 http 调试工具 insomnia/postman 做测试
+------------------------------------------------
+基于正则自定义匹配规则  //grok pattern满足不了需求时
+  - (?<service_name>[0-9a-z]{10,11})
+input {stdin{}}
+filter {
+  grok {
+    match => {
+	  "message" => "(?<service_name>[0-9a-z]{10,11})"
+	}
+  }
+} 
+output {stdout{codec=>rubydebug}}
 ================================================
 12-5 filter插件之grok简介(下)
 
