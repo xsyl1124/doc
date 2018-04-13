@@ -1,0 +1,264 @@
+12-1 input插件详解及glob讲解
+
+input插件指定数据输入源,一个pipeline可以有多个input插件,我们主要讲解下面几个input插件
+  - stdin
+  - file
+  - kafka
+
+最简单的输入,从标准输入读取数据,通用配置为:
+  - codec 类型为codec
+  - type 类型为string,自定义该事件的类型,可用于后续判断
+  - tags 类型为array,自定义该事件的tag,可用于后续判断
+  - add_field类型为hash,为该事件添加字段
+  
+从文件读取数据,如常见的日志文件.文件读取通常要解决几个问题:
+  - 文件内容如何只被读取一次?即重启LS时,从上次读取的位置继续
+    - sincdb
+  - 如何即时读取到文件的新内容?
+    - 定时检查文件是否有更新
+  - 如何发现新文件并进行读取?
+    - 可以,定时检查新文件
+  - 如果文件发生了归档(rotation)操作,是否影响当前的内容读取?
+    - 不影响,被归档的文件内容可以继续被读取  
+  
+基于Filewatch的ruby库实现的
+  - https://github.com/jordansissel/ruby-filewatch
+  - watch
+  - tail
+require "rubygems"
+require "filewatch/tail"
+
+t = FileWatch::Tail.new
+t.tail("/tmp/test*.log")
+t.subscribe do|path,line|
+  puts "#{path}:#{line}"
+end  
+------------------------------------------------
+Input Plugin - file
+
+path 类型为数组,指明读取的文件路径,基于glob匹配语法
+  - path => ["/var/log/**/*.log","/var/log/message"]  
+exclue 类型为数组排除不想监听的文件规则,基于glob匹配语法
+  - exclue => "*.gz"
+sincdb_path 类型为字符串,记录sincedb文件路径
+start_postion 类型为字符串,beginning or end,是否从头读取文件
+start_interval 类型为数值,单位秒,定时检查文件是否有更新,默认1s
+discover_interval类型为数值,单位秒,定时检查是否有新文件待读取,默认15秒
+ignore_older类型为数值,单位秒,扫描文件列表时,如果该文件上次更改时间超过设定的时长,则不做处理,但依然会监控是否有新内容,默认关闭
+close_older 类型为数值,单位秒,如果监听的文件在超过该设定时间内没有新内容,会被关闭文件句柄,释放资源,但依然会监控是否有新内容,默认1小时  
+------------------------------------------------
+Input Plugin - glob 匹配语法
+
+主要包含如下几种匹配符:
+  - * 匹配任意字符,但不匹配以"."(点)开头的隐藏文件,匹配这类文件时要使用.*来匹配
+  - ** 递归匹配子目录
+  - ? 匹配单一字符
+  - [] 匹配多个字符,比如[a-z],取反[^a-z]
+  - {} 匹配多个单词,比如{foo,bar,hello}
+  - \ 转义符号
+
+"/var/log/*.log"
+  - 匹配/var/log/目录下以.log结尾的文件
+"/var/log/**/*.log"
+  - 匹配/var/log/所有子目录下以.log结尾的文件
+"/var/log/{app1,app2,app3}/*.log"
+  - 匹配/var/log/目录下app1,app2,app3目录中以.log结尾的文件
+
+实际使用中的例子如下:
+intput {
+  file {
+    path => ["/var/log/access_log","/var/log/err_log"],
+	type => "web",
+	start_postion => "beginning"  //第一次启动logstash从头读取
+  }
+}
+
+调试文件输入时的常用配置如下:
+intput {
+  file {
+    path => "/var/log/*.log"
+	sincdb_path => "/dev/null"  // 每次都是从头读取文件
+	start_postion => "beginning"  //第一次启动logstash从头读取
+	ingore_older => 0
+	close_older => 5
+	discover_interval => 1
+  }
+}  
+output {
+  stdout { codec => rubydebug{}}
+}
+------------------------------------------------
+Input Plugin - kafka
+
+Kafka是最流行的消息队列,也是Elastic Stack架构中常用的,使用相对简单
+
+input {
+  kafka {
+    zk_connect => "kafka:2181"
+	group_id => "logstash"
+	topic_id => "apache_logs"
+	consumer_threads => 16
+  }
+}
+================================================
+12-2 codec插件详解
+
+Codec Plugin
+
+Codec Plugin作用于input和output plugin,负责将数据在原始与Logstash Event之间转换,常见的codec有:
+  - plain读取原始内容
+  - dots将内容简化为点进行输出
+  - rubydebug将Logstash Events按照ruby格式输出,方便调试
+  - line处理带有换行符的内容
+  - json处理json格式的内容
+  - multiline处理多行数据的内容  
+
+三条测试命令  
+bin/logstash -e "input{stdin{codec=>line}output{stdout{codec=>rubydebug}}}"
+bin/logstash -e "input{stdin{codec=>line}output{stdout{codec=>dots}}}"
+bin/logstash -e "input{stdin{codec=>json}output{stdout{codec=>rubydebug}}}"  
+------------------------------------------------
+Codec Plugin - multiline
+
+当一个Event的message由多行组成时,需要使用该codec,常见的情况是堆栈日志信息的处理,如下所示:
+Excepiton in thread "main" java.lang.NullPointerException
+ at com.example.myproject.Book.getTitle(Book.java:16)
+ at com.example.myproject.Author.getBook(Author.java:25)
+ at com.example.myproject.Bootstrap.main(Bootstrap.java:14)
+ 
+input {
+  stdin{
+    codec => multiline {
+	  pattern => "^\s"
+	  what => "previous"
+	}
+  }
+} 
+
+主要设置参数如下:
+  - pattern 设置行匹配的正则表达式,可以使用grok
+  - what previous|next,如果匹配成功,那么匹配行是归属上一个事件还是下一个事件
+  - negate true or false 是否对pattern的结果取反
+------------------------------------------------
+另外一个例子,以斜杠结尾
+printf("%10.10ld \t %10.10ld \t %s\
+  %f",w,x,y,z)
+input {
+  stdin {
+    codc => multiline {
+	  pattern => "\\$"
+	  what => "next"
+	}
+  }
+}
+------------------------------------------------
+这个例子以时间戳开头的
+[2015-08-24 11:49:14,389][INFO][env	][Letha] using [1] data path, mounts [[/
+(/dev/disk1)]],net usable_space [34.5gb], net total_space [118.9gb],types [hfs]
+input {
+  stdin {
+    codc => multiline {
+	  pattern => "^\[%{TIMESTAMP_ISO8601}\]"
+	  negate => true
+	  what => "next"
+	}
+  }
+}
+================================================
+12-3 filter插件简介及date插件讲解
+
+Filter Plugin
+
+Filter是Logstash功能强大的主要原因,它可以对Logstash Event进行丰富的处理,比如解析数据,删除字段,类型转换等等,常见的有:
+  - date 日期解析
+  - grok 正则匹配解析
+  - dissect 分隔符解析  //相对grok性能有提升
+  - mutate 对字段作处理,比如重命名,删除,替换等
+  - json 按照json解析字段内容到指定字段中
+  - geoip 增加地理位置数据
+  - ruby 利用ruby代码来动态修改 Logstash Event
+------------------------------------------------
+Filter Plugin - date
+
+将日期字符串解析为日期类型, 然后替换@timestamp字段或者指定的其他字段
+filter{
+  date {
+    match => ["logdate","MMM dd yyyy HH:mm:ss"]
+  }
+}
+{"logdate":"Jan 01 2018 12:02:08"} 这样一条数据就被解析为如下:
+{
+  "@version" => "1",
+  "host" => "MacBook-Pro-2.local",
+  "logdate" => "Jan 01 2018 12:02:08",
+  "@timestamp" => "2018-01-01T04:02:08.000Z",
+}
+
+match //date插件的参数
+  - 类型数组, 用于指定日期匹配的格式,可以一次指定多种日期格式
+  - match => ["logdate","MMM dd yyyy HH:mm:ss","ISO8601"]
+target //date插件的参数
+  - 类型为字符串, 用于指定赋值的字段名,默认是@timestamp
+timezone //date插件的参数
+  - 类型为字符串, 用于指定时区
+
+================================================
+12-4 filter插件之grok简介(上)
+
+Filter Plugin - grok
+
+144.23.4.1 - - [13/Mar/2016:02:38:26 -0400] "GET /fancy.html HTTP/1.1" 200 6146 "-" "Mozilla/5.0 (X11;Linux x86_64;rv:51.0) Gecko/ 20100101 Firefox/51.0"
+如何解析上面一条日志?
+------------------------------------------------
+正则表达式  可以解析, 但非常繁琐
+------------------------------------------------
+Grok 解析 //带有名字的正则表达式集合
+%{IPORHOST:clientip} %{USER:ident} %{USER:auth} \[%{HTTPDATE:timestamp}\]%{WORD:verb} %{DATA:request} HTTP/%{NUMBER:httpversion} % {NUMBER:response:int}(?:-|%{NUMBER:bytes:int} %{QS:referrer} %{QS:referrer} %{QS:agent})
+
+IPORHOST的组成
+IP(?:%{IPV6}|%{IPV4})
+HOSTNAME \b(?:[0-9A-Za-z][0-9A-Za-z]{0,62})(?:\.(?:[0-9A-Za-z][0-9A-Za-z]{0,62}))*(\.?|\b)
+IPORHOST (?:%{IP}|%{HOSTNAME})
+
+内置的pattern
+https://github.com/logstash-plugins/logstash-patterns-core/blob/master/patterns/grok-patterns
+------------------------------------------------
+Grok语法如下:
+  - %{SYNTAX:SEMANTIC}
+  - SYNTAX为grok pattern的名称,SEMANTIC为赋值字段名称
+  - %{NUMBER:duration}可以匹配数值类型,但是grok匹配出的内容都是字符串,可以通过在最后指定为int或者float来强制转换类型,%{NUMBER:duration:float}
+
+熟悉常见一些pattern利于编写匹配规则  
+https://github.com/logstash-plugins/logstash-patterns-core/tree/master/patterns
+
+
+
+
+================================================
+12-5 filter插件之grok简介(下)
+
+
+
+================================================
+12-6 filter插件之dissect讲解
+
+
+
+================================================
+12-7 filter插件之mutate讲解
+
+
+================================================
+12-8 filter插件之json讲解
+
+================================================
+12-9 filter插件之geoip讲解
+
+
+================================================
+12-10 output插件简介
+
+
+================================================
+12-10 文档说明
+

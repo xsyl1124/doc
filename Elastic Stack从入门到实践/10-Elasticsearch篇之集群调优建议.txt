@@ -69,9 +69,9 @@ ES写数据 - flush
 	- 将index buffer清空,其中的文档生成一个新的segment,相当于一个refresh操作
 	- 更新commit point并写入磁盘
 	- 执行fsync操作,将内存中的segment写入磁盘
-	- 删除就的translog文件
+	- 删除旧的translog文件
 	
-目标是增大写吞吐量-EPS(Events Per Second)越高越好
+目标是增大写吞吐量 - EPS(Events Per Second)越高越好
 
 优化方案	
   - 客户端:多线程写,批量写
@@ -98,7 +98,7 @@ ES写数据 - flush
 	  - (10+10)/5=4
 	  - 实际要设置为4+1=5个,防止在某个node下线时,分片迁移失败的问题	
 	  
-主要为index级别的设置优化,以日志场景举例,一般会有初夏的索引设定:
+主要为index级别的设置优化,以日志场景举例,一般会有如下的索引设定:
 {
   "settings":{
     "index":{
