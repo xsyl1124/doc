@@ -1,0 +1,56 @@
+14-1 Beats 简介
+
+lightweight shippers that collect and ship all kinds of operational data to Elasticsearch
+
+Go语言编写
+
+libbeat
+  - Beats library
+Packetbeat
+  - Network data
+Filebeat
+  - Log files
+Metricbeat
+  - Metrics
+Winlogbeat
+  - Windows Event Logs
+Heartbeat
+  - Uptime monitoring
+More Community Beats ...  
+-> logstash -> elasticsearch -> kibana
+-> elasticsearch -> kibana
+================================================
+14-2 Filebeat Demo
+
+./filebeat -e -c filebeat.yml -d "publish"
+-e 输出到stderr,默认输出到syslog和logs
+publish 输出publish相关的debug日志
+
+filebeat.yml
+filebeat.prospectors:
+- type: stdin
+  tags: ["test"]
+  fields:
+    name: alfred
+  #fields_under_root: true
+  json.keys_under_root: true
+  json.add_error_key: true
+output.console:
+  pretty: true
+  enabled: true
+================================================
+14-3 Filebeat 简介及流程介绍
+
+
+
+
+================================================
+14-4 Filebeat 常见架构及 ingest_node 介绍
+
+
+
+
+================================================
+14-5 Filebeat_Module简介
+
+
