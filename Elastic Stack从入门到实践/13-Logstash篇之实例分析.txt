@@ -1,0 +1,116 @@
+13-1 logstash 实战建议
+
+调试的配置建议
+调试阶段建议大家使用如下配置:
+  - http做input,方便输入测试数据,并且可以结合reload特性(std无法reload)
+  - stdout做output,codec使用rubydebug,即时查看解析结果
+  - 测试错误输入情况下的输出,以便对错误情况进行处理
+input { http { port => 7474 } }
+filter {}
+output { stdout { codec => rubydebug } }
+------------------------------------------------
+处理的建议
+@metadata特殊字段,其内容不会输出在output中
+  - 适合用来存储做条件判断,临时存储的字段
+  - 相比remove_field有一定的性能提升
+input { http { port => 7474 } }
+filter {
+  mutate { add_field => {"[@metadata][debug]" => true} }
+  mutate { add_field => {"message_show" => "show in output"} }
+  mutate {
+    remove_field => "headers"
+  }
+}
+output {
+  if [@metadata][debug] {
+    stdout { codec => rubydebug{metadata=>true} }
+  } else {
+    stdout { codec => dots }
+  }
+} 
+================================================
+13-2 实战之 apacheLogs(上)
+
+收集 Apache 的日志
+46.105.14.53 -- [20/May/2015:21:05:15 +0000] "GET /blog/tags/puppet?flav=rss20 HTTP/1.1" 200 14872 "-" "UniversalFeedParse/4.2-pre-314-svn +http://feedparser.org/"
+
+input { http { port => 7474} }
+filter {
+  grok { match => {"message" => "%{COMBINEDAPACHELOG}"} }
+  ruby { code => "event.set('@read_timestamp',event.get('@timestamp'))" }
+
+  # 20/May/2015:21:05:56 +0000
+  date { match => ["timestamp","dd/MMM/yyyy:HH:mm:ss Z"] }
+  
+  geoip {
+    source => "clientip"
+    fields => ["location","country_name","city_name","region_name"]
+  }
+  
+  mutate { remove_field => ["headers","message","timestamp"] }
+}
+
+output { stdout { codec => rubydebug } }
+================================================
+13-2 实战之 apacheLogs(下)
+
+处理错误
+if "_grokparsefailure" in [tags] {
+	mutate{
+		replace=>{
+			"[@metadata][index]" => "apache_logs_failure_%{+YYYY.MM}"
+		}
+	}
+}else{
+	mutate{remove_field=>["message"]}
+
+}
+------------------------------------------------
+收集的过程中非常有可能收到不符合格式的日志
+这个时候是需要做兼容的
+================================================
+13-4 实战之 csv
+
+收集 csv 类型的数据
+  - csv filter plugin
+DateTime,Latitude,Longitude,Depth,Magnitude,Mag Type,NbStations,Gap,Distance,RMS,Source,EventID
+2016/01/01 00:30:04.91,18.0772,-67.1027,19.91,2.80,Md,,125,0,0.44,pr,201601012001  
+2016/01/01 00:30:58.02,37.4485,-115.9455,12.31,1.27,ML,26,150,28,0.20,NN,524900 
+------------------------------------------------
+filter{
+    csv{
+        columns => ["timestamp","latitude","longitude","depth","mag","magType","nst","gap","dmin","rms","source","event_id"]
+        convert => {"latitude" => "float"}
+        convert => {"longitude" => "float"}
+        convert => {"depth" => "float"}
+        convert => {"mag" => "float"}
+        convert => {"gap" => "float"}
+        convert => {"dmin" => "float"}
+        convert => {"rms" => "float"}
+    }
+
+    mutate{
+        add_field => {"location"=>"%{latitude},%{longitude}"}
+        remove_field => [ "latitude","longitude"]
+    }
+
+    #2016/01/01 00:30:04.91
+    date{
+        match => ["timestamp","yyyy/MM/dd HH:mm:ss.SS"]
+        remove_field => ["timestamp"]
+    }
+
+}
+================================================
+13-5 监控运维建议
+
+logstash 提供了丰富的api来查看logstash的当前状态
+  - http://localhost:9600
+  - http://localhost:9600/_node
+  - http://localhost:9600/_node/stats
+  - http://localhost:9600/_node/host_threads
+
+X-Pack Monitoring 功能提供了Logstash的相关指标监控
+  - 在 Logstash 中安装 X-Pack 插件 ./bin/logstash-plugin install x-pack
+  - 修改 Logstash 的配置文件, 增加如下选项  
+  xpack.monitoring.elasticsearch.url: ["http://localhost:9200"]
