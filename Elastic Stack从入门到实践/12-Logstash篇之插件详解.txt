@@ -331,23 +331,201 @@ dissect的性能是grok的2.5倍左右
 ------------------------------------------------
 dissect的应用有一定的局限性
   - 主要适用于每行格式相似且分隔符明确的简单的场景
+------------------------------------------------
+dissect语法比较简单,有一系列字段(field)和分隔符(delimiter)组成
+  - %{}字段
+  - %{}之间是分割符号
+------------------------------------------------
+一个例子,下面是一条日志
 
+Apr 26 12:20:02 localhost systemd[1]: Starting system activity accounting tool...
 
+filter {
+  dissect {
+    mapping => {"message" => "%{ts} %{+ts} %{+ts} %{src} %{prog}[%{pid}]: %{msg}"}
+  }
+}
+------------------------------------------------
+文本: hi - hello - 12
+语法: %{a} - %{b} - %{c}  //如果不写名称,即%{},表明忽略该值
+结果:{"a":"hi","b":"hello","c":12}
+------------------------------------------------
+文本: Apr 26 12:20:02
+语法: %{ts} %{+ts} %{+ts} //+加号代表该匹配值追加到ts字段下
+结果: {"ts":"Apr 26 12:20:02"}
+------------------------------------------------
+文本: two three one go
+语法: %{+order/2} %{+order/3} %{+order/1} %{+order/4}  // /斜杠后面的数字代表拼接的次序
+结果: {"order":"one two three go"}
+------------------------------------------------
+文本: a=1&b=2
+语法: %{?key1}=%{&key1}&%{?key2}=%{&key2}  // %{?}代表忽略匹配值,但是赋予字段名,用于后续匹配用;%{&}代表将匹配值赋予key1的匹配值
+结果: {"a":"1","b":"2"}
+------------------------------------------------
+dissect 可以自动处理空的匹配值
+  John Smith,Big Oaks,Wood Lane,Hambledown,Canterbury,CB34RY
+  %{name},%{addr1},%{addr2},%{addr3},%{city},%{zip}
+  Jane Doe,4321 Fifth Avenue,,,New York,87432
+  {
+    "name":"Jane Doe",
+	"addr1":"4321 Fifth Avenue",
+	"addr2":"",
+	"addr3":"",
+	"city":"New Youk",
+	"zip":"87432"
+  }
+------------------------------------------------
+dissect 分割后的字段值都是字符串,可以使用 convert_datatype属性进行类型转换
+
+filter {
+  dissect {
+    convert_datatype => {
+	  age => "int"
+	}
+  }
+}
 ================================================
 12-7 filter插件之mutate讲解
 
-
+使用最频繁的操作, 可以对字段进行各种操作,比如重命名,删除,替换,更新等:
+  - convert 类型转换
+  - gsub 字符串替换
+  - split/join/merge 字符串切割, 数组合并为字符串,数组合并为数组
+  - rename 字段重命名
+  - update/replace 字段内容更新或替换
+  - remove_field 删除字段
+------------------------------------------------
+convert
+  - 实现字段类型的转换,类型为hash,仅支持转换为integer,float,string和boolen
+filter {
+  mutate {
+    convert => {"age" => "integer"}
+  }
+}
+------------------------------------------------
+gsub
+  - 对字段内容进行替换, 类型为数组, 每3项为一个替换配置
+filter {
+  mutate {
+    gsub => [
+	  "path","/","_",               //把path中的斜线/替换成下划线_
+	  "urlparams","[\\?#-]","."     //把ulrparams中的这些符号替换成点.
+	]
+  }
+}
+------------------------------------------------
+split
+  - 将字符串切割为数组
+filter {
+  mutate {
+    split => {"jobs" => ","}
+  }
+}
+------------------------------------------------
+join
+  - 将数组拼接为 字符串
+filter {
+  mutate {
+    join => {"params" => ","}
+  }
+}
+------------------------------------------------
+merge
+  - 将两个数组合并为1个数组,字符串会被转为1个元素的数组进行操作
+filter {
+  mutate {
+    merge => {"dest_arr" => "source_arr"}
+  }
+}
+------------------------------------------------
+rename
+  - 将字段重命名
+filter {
+  mutate {
+    rename => {"HOSTORIP" => "client_ip"}  //将"HOSTORIP"改为"client_ip"
+  }
+}
+------------------------------------------------
+update/replace
+  - 更新字段内容,区别在于update只在字段存在时生效,而replace在字段不存在时会执行新增字段的操作
+filter {
+  mutate {
+    replace => {"message" => "%{source_host}: My new message"}
+  }
+}  
+------------------------------------------------
+remove
+  - 删除字段
+filter {
+  mutate {
+    remove_field => ["message"]
+  }
+}  
 ================================================
 12-8 filter插件之json讲解
 
+将字段内容为json格式的数据进行解析
+filter {
+  json {
+    source => "message"  //要解析的字段名
+	target => "msg_json"  //解析后的存储字段,默认和message同级别
+  }
+}
 ================================================
 12-9 filter插件之geoip讲解
 
+常用的插件,根据ip地址提供对应的地域信息,比如经纬度,城市名等,方便进行地理数据分析
 
+filter {
+  geoip {
+    source => "ip"
+  }
+}
+------------------------------------------------
+最灵活的插件,可以以ruby语言来随心所欲的修改 Logstash Event 对象
+filter {
+  ruby {
+    code => 'size = event.get("description").size;
+	event.set("description_size",size)'
+  }
+}
 ================================================
 12-10 output插件简介
 
-
+负责将Logstash Event输出,常见的插件如下:
+  - stdout
+  - file
+  - elasticsearch  
+------------------------------------------------
+stdout
+  - 输出到标准输出,多用于调试
+output {
+  stdout {
+    codec => rubydebug
+  }
+}
+------------------------------------------------
+file
+  - 输出到文件,实现将分散在多地的文件统一到一处的需求,比如将所有web机器的web日志收集到1个文件中,从而方便查阅信息
+output {
+  file {
+    path => "/var/log/web.log"
+	codec => line {format => "%{message}"} //默认输出json格式的数据,通过format可以输出原始格式
+  }
+}
+------------------------------------------------
+elasticsearch
+  - 输出到elasticsearch,是最常见的插件,基于http协议实现
+output {
+  elasticsearch {
+    hosts => ["127.0.0.1:9200","127.0.0.2:9200"]  //只写data和client node地址,不要写master node的地址,否则的话,会增加master node的压力
+	index => "nginx-%{+YYYY.MM.dd}"  //索引可以按照时间写入 
+	templdate => "./nginx_templdate.json"
+	tempate_name => "nginx_templdate"
+	tempate_overwrite => true
+  }
+}
 ================================================
-12-10 文档说明
+12-11 文档说明
 
+https://www.elastic.co/guide/en/logstash/current/index.html
