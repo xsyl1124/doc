@@ -270,8 +270,54 @@ output {stdout{codec=>rubydebug}}
 ================================================
 12-5 filter插件之grok简介(下)
 
+自定义 grok pattern 
+  - pattern_definitions参数,以键值对的方式定义pattern名称和内容
+  - pattern_dir参数,以文件的形式被读取 //通过文件的形式加载
+  filter {
+    grok {
+	  match =>{
+	    "message" => "%{SERVICE:service}"
+	  }
+	  pattern_definitions => {
+	    "SERVICE" => "[a-z0-9]{10,11}"
+	  }
+	}
+  }
+------------------------------------------------
+match 匹配多种样式
 
+filter {
+  grok {
+    match => {
+	  "message" => ["Duration: %{NUMBER:duration}","Speed:%{NUMBER:speed}"]
+	}
+  }
+}
+------------------------------------------------
+overwrite  //grok匹配的字段直接替换,而不是追加,比如这里的message
 
+filter {
+  grok {
+    match => {
+	  "message" => "%{SYSLOGBASE} %{DATA:message}"
+	}
+	overwrite => ["message"]
+  }
+}
+------------------------------------------------
+tag_on_failure
+  - 默认是_grokparsefailure, 可以基于此做判断
+------------------------------------------------
+grok 调试建议
+
+正则表达式
+  - https://www.debuggex.com
+  - http://www.regexr.com
+
+grok 调试
+  - http://grokdebug.herokuapp.com
+  - http://grok.elasticsearch.cn
+  - x-pack grok debugger
 ================================================
 12-6 filter插件之dissect讲解
 
