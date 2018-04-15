@@ -1,0 +1,104 @@
+15-1 Metricbeat 简介
+
+定期收集操作系统,软件或服务的指标数据
+存储在Elasticsearch中进行实时的分析
+------------------------------------------------
+Logs VS Metrics
+Logs
+  - 用于记录离散的事件,具有随机性,例如,应用程序的调试信息或错误信息等
+Metrics
+  - 用于记录度量或可聚合的数据,具有计划性,例如,服务的响应时长等
+
+93.180.71.3 - - [10/Nov/2016:00:01:05 +0800] "GET /mailman/hsdivision HTTP/1.1" 200 6291  //Logs
+10/Nov/2016:00:01:05 all 2.58 0.00 0.70 1.12 0.05 95.55  //Metrics
+------------------------------------------------  
+Metricbeat组成
+Module
+  - Metricbeat收集指标的对象,比如linux,windows,mysql等
+Metricset
+  - Metricbeat收集指标集合,该集合以减少收集指标调用次数为划分依据,1个Module可以有多个Metricset  
+------------------------------------------------
+Metricbeat原理
+
+Redis <- Redis Module(Info Metricset/Keyspace Metricbeat) -> Elasticsearch
+------------------------------------------------
+Metricbeat Event
+Event的通用结构如下:
+{
+  "@timestamp":"2016-06-22T22:05:53.291Z"
+  "beat":{
+    "hostname":"host.example.com",
+	"name":"host.example.com"
+  },
+  "metricset":{
+    "module":"system",
+	"name":"process",
+	"rtt":7419
+  },
+  .
+  .
+  .
+  "type":"metricsets"
+}
+================================================
+15-2 Metricbeat Module 简介
+
+Metricbeat有大量的module
+  - System
+  - Redis
+  - MySQL
+  - Kafka
+  - Zookeeper
+  - Docker
+  - Kubernetes
+  - ...
+------------------------------------------------
+每个Module都有自己的Metricsets,比如System Module:
+  - core
+  - cpu
+  - diskio
+  - filesystem
+  - fsstat
+  - load
+  - memory
+  - ...
+------------------------------------------------
+Metricbeat配置
+
+metricbeat.modules:
+- module:redis
+  metricsets:["info"]
+  hosts:["host1"]
+  period:1s
+- module:apache
+  metricsets:["info"]
+  hosts:["host1"]
+  period:30s
+指定不同的module  
+
+metricbeat.modules:
+- module:redis
+  metricsets:["info"]
+  hosts:["host1"]
+  period:1s
+- module:redis
+  metricsets:["keyspace"]
+  hosts:["host1"]
+  period:30s
+同一个module,不同metricset配置
+================================================
+15-3 Metricbeat Module 实战
+
+安装
+配置 - metricbeat.yml
+配置模板 - index template
+配置 Kibana Dashboards
+运行
+  - sudo chown root metricbeat.yml
+  - sudo chown root modules.d/system.yml
+  - sudo ./metricbeat -e -c metricbeat.yml -d "publish"
+
+./metricbeat modules list
+./metricbeat modules enable redis
+
+sudo ./metricbeat setup --dashboards  //导入dashboards
