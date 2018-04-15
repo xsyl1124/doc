@@ -41,16 +41,246 @@ output.console:
 ================================================
 14-3 Filebeat 简介及流程介绍
 
+Filebeat简介
+  - 读取日志文件,但不做数据的解析处理
+  - 保证数据"At Least Once"至少被读取一次,即数据不会丢失
+  - 其他能力
+    - 处理多行数据  //比如处理日志中堆栈信息,多行的堆栈当做一行处理
+	- 解析JSON格式数据
+	- 简单的过滤功能
+------------------------------------------------
+Filebeat使用
+  - 安装 开箱即用
+  - 配置 filebeat.yml
+  - 配置模板 index templdate
+  - 配置 Kibana Dashboards
+  - 运行  
+------------------------------------------------
+Filebeat配置 - filebeat.yml
+filebeat.prospectors:
+  - type: log  //type有log|stdin|redis|udp|docker
+  paths:  //数组,Golang Glob
+    - /var/log/*.log
+  encoding: gb-2312
+  tags: ["json"]  //tags和fields可以自定义标签和字段
+  fields:
+    document_type: web
+  fields_under_root: true
+output.elasticsearch:  //output只能有一个,可以通过enabled开关
+  hosts:["localhost:9200"]
+setup.kibana:  //指定kibana的地址,用于导入dashboard
+  host: "llocalhost:5601"
+------------------------------------------------
+Filebeat配置模板 - index templdate
 
+setup.templdate.name:"nginx"
+setup.templdate.pattern:"nginx-*"
+setup.dashboards.index:"nginx-*"
+setup.templdate.fields:"nginx_fields.yml"
+setup.templdate.overwrite:true
+setup.templdate.enabled:false
 
+PUT _templdate/nginx
+{
+  "index_patterns":["nginx-*"],
+  ...
+}
 
+Filebeat使用yml格式的文件:解决不同es版本mapping语法不一致的问题
+./filebeat export config
+./filebeat export template
+./filebeat export templdate -E setup.templdate.fields=nginx_fields.yml
+
+建议大家通过ES API的方式来创建template
+------------------------------------------------
+Filebeat配置Kibana Dashboards
+
+Filebeat集成Kibana Dashboards,可用于快速展示数据
+  - 结合Modules使用
+  - 一次性全部导入
+./filebeat setup --dashboards
+------------------------------------------------
+Filebeat运行
+
+./filebeat -e -c filebeat.yml -d "publish"
 ================================================
 14-4 Filebeat 常见架构及 ingest_node 介绍
 
+Filebeat架构一
+Beats(采集日志)->Logstash(日志处理,比如grok解析等)-> Elasticsearch(数据存储,查询)->Kibana(可视化分析)
+------------------------------------------------
+Filebeat架构二
+Beats(采集日志)-> Elasticsearch(数据解析,存储,查询)->Kibana(可视化分析)
+------------------------------------------------
+Elasticsearch Ingest Node
+5.x新增的一个节点类型
+  - 在数据写入es前(bulk/index操作)对数据进行处理
+  - 可设置独立的ingest node专门进行数据转换处理 node.ingest:true
+  - api endpoint为pipeline  //在api中使用ingest node的处理
+------------------------------------------------
+Ingest Node - Pipeline
 
+Pipeline 由一系列processor组成,类似logstash的filter plugin
+{
+  "description":"...",
+  "processors":[...]
+}
 
+Pipeline 的API比较简单,主要有4个:
+  - 创建PUT
+  - 获取GET
+  - 删除DELETE
+  - 模拟调试SIMULATE
+------------------------------------------------
+PUT _ingest/pipeline/test
+{
+  "description":"for test",
+  "processors":[
+    {
+      "set":{
+	    "field":"name",
+	    "value":"alfred"
+	  }	
+	}
+  ]
+}
+
+GET _ingest/pipeline/test
+  
+DELETE _ingest/pipeline/test  
+------------------------------------------------
+POST _ingest/pipeline/_simulate
+{
+  "pipeline":{
+    "description":"for test",
+    "processors":[
+	  {
+        "set":{
+	      "field":"name",
+	      "value":"alfred"
+	    }	  
+	  }
+    ]  
+  },
+  "docs":[
+    {
+	  "_source":{
+	    "message":"my message"
+	  }
+	}
+  ]
+}
+
+POST _ingest/pipeline/test/_simulate
+{
+  "docs":[
+    {
+	  "_source":{
+	    "message":"my message"
+	  }
+	}
+  ]
+}
+------------------------------------------------
+Processor对应Logstash的Filter Plugin,基本都涵盖了
+  - Convert
+  - Grok
+  - Date
+  - Gsub
+  - Join
+  - Json
+  - Remove
+  - Script
+------------------------------------------------
+注意处理解析错误的情况
+{
+  "description":"handled exceptions",
+  "processors":[...],
+  "on_failure":[
+    {
+	  "set":{
+	    "field":"_index",
+		"value":"failed-{{ _index }}"
+	  }
+	}
+  ]
+}
+
+{
+  "description":"handled exceptions",
+  "processors":[
+    {
+	  "rename":{
+	    "field":"foo",
+		"to":"bar",
+		"on_failure":[
+		  {
+		    "set":{
+			  "field":"error",
+			  "value":"{{_ingest.on_failure_message}}"
+			}
+		  }
+		]
+	  }
+	}
+  ]
+}
+------------------------------------------------
+日志处理中常用到两个es的插件
+  - ./bin/elasticsearch-plugin install ingest-geoip
+  - ./bin/elasticsearch-plugin install ingest-user-agent
+
+93.180.71.3 - - [10/Nov/2016:00:01:05 +0800] "GET /downloads/product_1 HTTP/1.1" 304 0 "-" "Debian APT-HTTP/1.3 (0.8.16~exp12ubuntu10.21)" 
+------------------------------------------------
+pipeline的使用比较简单,在索引相关的api中都有pipeline的参数可以指定
+
+PUT my-index/doc/1?pipeline=test
+{
+  "message":"test"
+}
+
+POST _bulk?pipeline=test
+{
+  "message":"test"
+}
+
+POST _reindex
+{
+  "source":{
+    "index":"source"
+  },
+  "dest":{
+    "index":"dest",
+	"pipeline":"some_ingest_pipeline"
+  }
+  
+}
+------------------------------------------------
+filebeat可以在output.elasticsearch中指定pipeline
+
+output.elasticsearch
+  hosts:["localhost:9200"]
+  pipeline:my_pipeline_id
 
 ================================================
 14-5 Filebeat_Module简介
 
+定义数据采集      => 配置Prospector
+建立数据模型      => Index Template
+建立数据处理流程  => Logstash/Ingest Pipeline
+存储并分析数据    => ES/Kibana Dashboards
+    路程多 设置复杂 
+------------------------------------------------
+Modules 简化了上述的流程
 
+提供了众多开箱即用的module
+
+./filebeat modules list
+./filebeat modules enable nginx
+------------------------------------------------
+配置位于module文件夹中,如nginx module(module/nginx)
+
+Prospector配置 => access/config/nginx-access.yml
+Index Template配置 => fields.yml
+Ingest Pipeline配置 => access/ingest/default.json
+Kibana Dashboards配置 => kibana
