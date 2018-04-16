@@ -1,0 +1,25 @@
+17-1 Heartbeat简介与实战
+
+心跳检查,确认对方是否还存活
+
+heartbeat.monitors:
+- type: icmp
+  schedule: '*/5 * * * * * *'
+  hosts: ["baidu.com"]
+- type: tcp
+  schedule: '@every 5s'
+  hosts: ["lianshang.com"]  
+- type: http
+  schedule: '@every 5s'
+  hosts: ["http://www.lianshang.com"]
+  check.response.status: 200
+
+./heartbeat setup dashboards  
+./heartbeat -e -c heartbeat.yml -d "publish"
+
+================================================
+17-2 Community Beats
+
+
+https://www.elastic.co/guide/en/beats/libbeat/current/community-beats.html
+
