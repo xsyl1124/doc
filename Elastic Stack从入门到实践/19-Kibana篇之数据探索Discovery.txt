@@ -1,0 +1,14 @@
+19-1 导入数据
+
+Kibana数据探索Discover
+导入测试数据
+  - https://www.elastic.co/guide/en/kibana/current/tutorial-load-dataset.html
+================================================
+19-2 Discover实战
+
+Uses lucene query syntax
+geo.src.keyword:CN
+
+
+
+
