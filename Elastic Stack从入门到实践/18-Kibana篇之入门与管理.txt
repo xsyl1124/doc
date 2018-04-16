@@ -1,0 +1,24 @@
+18-1 Kibana 配置与线上部署建议
+
+Kibana配置文件
+Kibana线上部署推荐架构
+  - 专门部署一个Coordinating Only ES Node,和Kibana在同一台机器上
+  
+ES Cluster(ES Node,ES Node,ES Node,ES Node(Coordinating Only Node)--> Kibana)  
+
+
+================================================
+18-2 Index Pattern Objects Settings使用
+
+Kibana管理
+
+Management->Kibana->Index Patterns 
+Kibana通过Index Pattern从ES取索引数据,用来做可视化展示
+创建Index Pattern
+
+Management->Kibana->Saved Objects
+
+
+Management->Kibana->Advanced Settins
+Kibana的相关配置
+
